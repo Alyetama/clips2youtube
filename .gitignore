@@ -153,5 +153,8 @@ cython_debug/
 
 # Other
 .DS_Store
-*.txt
+data.txt
+*.pkl
 *.ipynb
+*.mp4
+data_file.txt

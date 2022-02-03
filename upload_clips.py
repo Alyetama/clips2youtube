@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import json
+import os
 import random
 import shlex
 import subprocess
@@ -18,13 +19,16 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 import undetected_chromedriver as uc
 
 
-def get_posts(subreddit, proxies_file):
+class LimitReached(Exception):
+    pass
+
+
+def get_posts():
     subreddit = os.environ['SUBREDDIT']
     proxies_file = os.environ['PROXIES_FILE']
 
@@ -82,10 +86,12 @@ def handle_post(child, data_file):
     logger.info(f'Downloading: {url}')
     p = subprocess.run(cmd,
                        shell=False,
-                       check=True,
+                       check=False,
                        capture_output=True,
                        text=True,
                        stdin=ps.stdout)
+    if p.returncode != 0:
+        return
     logger.info(f'Downloaded: {file_name}')
 
     tags = ['lsf', 'livestreamfails', 'twitch', channel, game]
@@ -152,21 +158,24 @@ def upload(file_name, tags):
     except ElementClickInterceptedException:
         if 'Daily upload limit reached' in driver.find_element(
                 By.CLASS_NAME, 'error-area').text:
-            logger.warning('Daily limit reached! Terminating...')
             driver.close()
-            sys.exit(0)
+            raise LimitReached('Daily limit reached! Terminating...')
 
 
-def login(cookies_file='youtube_cookies.txt'):
+def login():
     options = uc.ChromeOptions()
     options.add_argument('--no-first-run --no-service-autorun')
     driver = uc.Chrome(options=options)
     # options.add_argument('headless')
     driver.get('https://youtube.com')
     time.sleep(3)
+    cookies_file = os.environ['YOUTUBE_COOKIES_FILE']
+    if not cookies_file:
+        logger.warning('You don\'t have a cookies file in the `.env` file to login to YouTube!  Will attempt to generate one...')
+        input('Press ENTER if you have logged in to your YouTube account.')
+        save_cookies(driver, 'youtube_cookies.pkl')
     load_cookies(driver, cookies_file)
     time.sleep(3)
-    driver.get('https://youtube.com')
     return driver
 
 
@@ -177,21 +186,21 @@ if __name__ == '__main__':
     if not Path('data_file.txt').exists():
         Path('data_file.txt').touch()
 
-    if not Path('cookies.pkl').exists():
-        raise FileNotFoundError('Create a cookies file first!')
+    data_file = open('data.txt', 'a+')
+    data = get_posts()
 
     driver = login()
-
-    data_file = open('data.txt', 'a+')
-
-    
-    data = get_posts()
 
     for child in data['data']['children']:
         try:
             file_name, tags, url = handle_post(child, data_file)
-            driver = upload(file_name, tags, )
+            try:
+                driver = upload(file_name, tags)
+            except LimitReached:
+                os.remove(file_name)
+                sys.exit(0)
             data_file.write(url + '\n')
+            os.remove(file_name)
         except (ValueError, TypeError):
             continue
 
