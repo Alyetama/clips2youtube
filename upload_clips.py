@@ -113,9 +113,7 @@ def load_cookies(driver, path):
 
 def upload(file_name, tags):
     channel_id = os.environ['CHANNEL_ID']
-    driver.get(
-        f'https://studio.youtube.com/channel/{channel_id}/videos?d=ud'
-    )
+    driver.get(f'https://studio.youtube.com/channel/{channel_id}/videos?d=ud')
     time.sleep(2)
     for e in driver.find_elements(By.TAG_NAME, 'input'):
         if e.get_attribute('type') == 'file':
@@ -171,7 +169,9 @@ def login():
     time.sleep(3)
     cookies_file = os.environ['YOUTUBE_COOKIES_FILE']
     if not cookies_file:
-        logger.warning('You don\'t have a cookies file in the `.env` file to login to YouTube!  Will attempt to generate one...')
+        logger.warning(
+            'You don\'t have a cookies file in the `.env` file to login to YouTube!  Will attempt to generate one...'
+        )
         input('Press ENTER if you have logged in to your YouTube account.')
         save_cookies(driver, 'youtube_cookies.pkl')
     load_cookies(driver, cookies_file)
